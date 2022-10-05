@@ -11,6 +11,7 @@ export default class App {
         this.activeDownloads = [];
         this.requestWatcher = new RequestWatcher(this.onRequestDataReceived.bind(this));
         this.tabsWatcher = [];
+        this.registered = false;
     }
 
     onRequestDataReceived(data) {
@@ -28,7 +29,7 @@ export default class App {
             chrome.downloads.cancel(
                 download.id
             );
-            this.triggerDownload(download.url, download.filename,
+            this.triggerDownload(url, download.filename,
                 download.referrer, download.fileSize, download.mime);
         }
     }
@@ -39,6 +40,10 @@ export default class App {
     }
 
     onMessage(msg) {
+        if (!this.registered) {
+            this.registered = true;
+            chrome.storage.local.set({ registered: true });
+        }
         this.logger.log(msg);
         this.enabled = msg.enabled === true;
         this.fileExts = msg.fileExts;
@@ -56,6 +61,7 @@ export default class App {
 
     onDisconnect(p) {
         this.logger.log("Disconnected.");
+        this.logger.log(p);
         this.enabled = false;
         this.port = undefined;
         this.updateActionIcon();
@@ -99,13 +105,21 @@ export default class App {
 
     start() {
         this.logger.log("starting...");
+        chrome.storage.local.get(['registered'], function (result) {
+            console.log(result);
+            if (result && result.registered === true) {
+                return;
+            }
+            console.log("Not registered");
+            chrome.tabs.create({url: chrome.runtime.getURL("register.html")});
+        });
+        this.startNativeHost();
         chrome.downloads.onCreated.addListener(
             this.onDownloadCreated.bind(this)
         );
         chrome.downloads.onDeterminingFilename.addListener(
             this.onDeterminingFilename.bind(this)
         );
-        this.startNativeHost();
         this.logger.log("started.");
         chrome.action.onClicked.addListener(this.actionClicked.bind(this));
         this.requestWatcher.register();

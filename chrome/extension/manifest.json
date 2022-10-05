@@ -12,7 +12,8 @@
         "nativeMessaging",
         "cookies",
         "webRequest",
-        "tabs"
+        "tabs",
+        "storage"
     ],
     "background": {
         "service_worker": "main.js",
