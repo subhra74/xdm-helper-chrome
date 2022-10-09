@@ -103,29 +103,29 @@ export default class App {
         }
     }
 
+    onStart(result) {
+        if (result && result.registered === true) {
+            this.startNativeHost();
+            chrome.downloads.onCreated.addListener(
+                this.onDownloadCreated.bind(this)
+            );
+            chrome.downloads.onDeterminingFilename.addListener(
+                this.onDeterminingFilename.bind(this)
+            );
+            this.logger.log("started.");
+            chrome.action.onClicked.addListener(this.actionClicked.bind(this));
+            this.requestWatcher.register();
+            chrome.tabs.onUpdated.addListener(
+                this.onTabUpdate.bind(this)
+            );
+        } else {
+            chrome.tabs.create({ url: chrome.runtime.getURL("register.html") });
+        }
+    }
+
     start() {
         this.logger.log("starting...");
-        chrome.storage.local.get(['registered'], function (result) {
-            console.log(result);
-            if (result && result.registered === true) {
-                return;
-            }
-            console.log("Not registered");
-            chrome.tabs.create({url: chrome.runtime.getURL("register.html")});
-        });
-        this.startNativeHost();
-        chrome.downloads.onCreated.addListener(
-            this.onDownloadCreated.bind(this)
-        );
-        chrome.downloads.onDeterminingFilename.addListener(
-            this.onDeterminingFilename.bind(this)
-        );
-        this.logger.log("started.");
-        chrome.action.onClicked.addListener(this.actionClicked.bind(this));
-        this.requestWatcher.register();
-        chrome.tabs.onUpdated.addListener(
-            this.onTabUpdate.bind(this)
-        );
+        chrome.storage.local.get(['registered'], this.onStart.bind(this));
     }
 
     shouldTakeOver(url, file) {
