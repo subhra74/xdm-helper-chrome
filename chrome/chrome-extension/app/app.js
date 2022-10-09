@@ -12,6 +12,7 @@ export default class App {
         this.requestWatcher = new RequestWatcher(this.onRequestDataReceived.bind(this));
         this.tabsWatcher = [];
         this.registered = false;
+        this.enabled = false;
     }
 
     onRequestDataReceived(data) {
@@ -65,6 +66,14 @@ export default class App {
         this.enabled = false;
         this.port = undefined;
         this.updateActionIcon();
+        chrome.storage.local.get(['registered'], this.onRegister.bind(this));
+    }
+
+    onRegister(result) {
+        if (result && result.registered === true) {
+            return;
+        }
+        chrome.tabs.create({ url: chrome.runtime.getURL("register.html") });
     }
 
     startNativeHost() {
@@ -103,29 +112,21 @@ export default class App {
         }
     }
 
-    onStart(result) {
-        if (result && result.registered === true) {
-            this.startNativeHost();
-            chrome.downloads.onCreated.addListener(
-                this.onDownloadCreated.bind(this)
-            );
-            chrome.downloads.onDeterminingFilename.addListener(
-                this.onDeterminingFilename.bind(this)
-            );
-            this.logger.log("started.");
-            chrome.action.onClicked.addListener(this.actionClicked.bind(this));
-            this.requestWatcher.register();
-            chrome.tabs.onUpdated.addListener(
-                this.onTabUpdate.bind(this)
-            );
-        } else {
-            chrome.tabs.create({ url: chrome.runtime.getURL("register.html") });
-        }
-    }
-
     start() {
         this.logger.log("starting...");
-        chrome.storage.local.get(['registered'], this.onStart.bind(this));
+        this.startNativeHost();
+        chrome.downloads.onCreated.addListener(
+            this.onDownloadCreated.bind(this)
+        );
+        chrome.downloads.onDeterminingFilename.addListener(
+            this.onDeterminingFilename.bind(this)
+        );
+        this.logger.log("started.");
+        chrome.action.onClicked.addListener(this.actionClicked.bind(this));
+        this.requestWatcher.register();
+        chrome.tabs.onUpdated.addListener(
+            this.onTabUpdate.bind(this)
+        );
     }
 
     shouldTakeOver(url, file) {
