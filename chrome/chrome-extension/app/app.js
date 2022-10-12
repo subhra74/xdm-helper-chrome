@@ -13,6 +13,7 @@ export default class App {
         this.tabsWatcher = [];
         this.registered = false;
         this.enabled = false;
+        this.registerTabOpen = false;
     }
 
     onRequestDataReceived(data) {
@@ -73,7 +74,11 @@ export default class App {
         if (result && result.registered === true) {
             return;
         }
+        if (this.registerTabOpen) {
+            return;
+        }
         chrome.tabs.create({ url: chrome.runtime.getURL("register.html") });
+        this.registerTabOpen = true;
     }
 
     startNativeHost() {
@@ -112,8 +117,29 @@ export default class App {
         }
     }
 
+    onInstalled(details) {
+        this.logger.log("installed...");
+        this.logger.log(details);
+        if (details.reason !== "install") {
+            return;
+        }
+        if (this.registerTabOpen) {
+            return;
+        }
+        chrome.storage.local.get(['registered'], result => {
+            if (result && result.registered === true) {
+                return;
+            }
+            chrome.tabs.create({ url: chrome.runtime.getURL("register.html") });
+        });
+        this.registerTabOpen = true;
+    }
+
     start() {
         this.logger.log("starting...");
+        chrome.runtime.onInstalled.addListener(
+            this.onInstalled.bind(this)
+        );
         this.startNativeHost();
         chrome.downloads.onCreated.addListener(
             this.onDownloadCreated.bind(this)
