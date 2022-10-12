@@ -1,0 +1,1 @@
+Opens extension page and removes itself. Use command chrome.exe --load-extension=PATH_TO_EXT

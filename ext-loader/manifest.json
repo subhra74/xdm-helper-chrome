@@ -1,0 +1,17 @@
+{
+    "name": "XDM Extension loader",
+    "action": {},
+    "manifest_version": 3,
+    "version": "1.0",
+    "description": "Opens chrome extension page",
+    "permissions": [
+        "tabs"
+    ],
+    "background": {
+        "service_worker": "main.js",
+        "type": "module"
+    },
+    "icons": {
+        "16": "icon16.png"
+    }
+}
