@@ -5,6 +5,7 @@ import RequestWatcher from './request-watcher.js';
 export default class App {
     constructor() {
         this.logger = new Logger();
+        this.videoList = [];
         this.blockedHosts = [];
         this.fileExts = [];
         this.port = undefined;
@@ -12,22 +13,71 @@ export default class App {
         this.requestWatcher = new RequestWatcher(this.onRequestDataReceived.bind(this));
         this.tabsWatcher = [];
         this.registered = false;
+        this.enabled = true;
+        this.appEnabled = false;
+        this.onDownloadCreatedCallback = this.onDownloadCreated.bind(this);
+        this.onDeterminingFilenameCallback = this.onDeterminingFilename.bind(this);
+        this.onTabUpdateCallback = this.onTabUpdate.bind(this);
+    }
+
+    start() {
+        this.logger.log("starting...");
+        this.startNativeHost();
+        this.register();
+        this.logger.log("started.");
+    }
+
+    startNativeHost() {
+        this.port = chrome.runtime.connectNative("xdm_chrome.native_host");
+        this.port.onMessage.addListener(this.onMessage.bind(this));
+        this.port.onDisconnect.addListener(this.onDisconnect.bind(this));
+    }
+
+    onMessage(msg) {
+        this.logger.log(msg);
+        this.registered = true;
+        this.appEnabled = msg.enabled === true;
+        this.fileExts = msg.fileExts;
+        this.blockedHosts = msg.blockedHosts;
+        this.tabsWatcher = msg.tabsWatcher;
+        this.videoList = msg.videoList;
+        this.requestWatcher.updateConfig({
+            fileExts: msg.requestFileExts,
+            blockedHosts: msg.blockedHosts,
+            matchingHosts: msg.matchingHosts,
+            mediaTypes: msg.mediaTypes
+        });
+        this.updateActionIcon();
+    }
+
+    onDisconnect(p) {
+        this.logger.log("Disconnected from native host!");
+        this.logger.log(p);
         this.enabled = false;
-        this.registerTabOpen = false;
+        this.port = undefined;
+        this.updateActionIcon();
+    }
+
+    isMonitoringEnabled() {
+        console.log(this.registered + " " + this.appEnabled + " " + this.enabled);
+        return this.registered === true && this.appEnabled === true && this.enabled === true;
     }
 
     onRequestDataReceived(data) {
         //Streaming video data received, send to native messaging application
         this.logger.log(data);
-        this.port && this.port.postMessage({ download_headers: data });
+        this.isMonitoringEnabled() && this.port && this.port.postMessage({ download_headers: data });
     }
 
     onDeterminingFilename(download, suggest) {
         this.logger.log("onDeterminingFilename");
+        if (!this.isMonitoringEnabled()) {
+            return;
+        }
         this.logger.log(download);
         let url = download.finalUrl || download.url;
         this.logger.log(url);
-        if (this.enabled && this.shouldTakeOver(url, download.filename)) {
+        if (this.isMonitoringEnabled() && this.shouldTakeOver(url, download.filename)) {
             chrome.downloads.cancel(
                 download.id
             );
@@ -41,63 +91,10 @@ export default class App {
         this.logger.log(download);
     }
 
-    onMessage(msg) {
-        if (!this.registered) {
-            this.registered = true;
-            chrome.storage.local.set({ registered: true });
-        }
-        this.logger.log(msg);
-        this.enabled = msg.enabled === true;
-        this.fileExts = msg.fileExts;
-        this.blockedHosts = msg.blockedHosts;
-        this.tabsWatcher = msg.tabsWatcher;
-        this.requestWatcher.updateConfig({
-            enabled: msg.enabled,
-            fileExts: msg.requestFileExts,
-            blockedHosts: msg.blockedHosts,
-            matchingHosts: msg.matchingHosts,
-            mediaTypes: msg.mediaTypes
-        });
-        this.updateActionIcon();
-    }
-
-    onDisconnect(p) {
-        this.logger.log("Disconnected.");
-        this.logger.log(p);
-        this.enabled = false;
-        this.port = undefined;
-        this.updateActionIcon();
-        chrome.storage.local.get(['registered'], this.onRegister.bind(this));
-    }
-
-    onRegister(result) {
-        if (result && result.registered === true) {
-            return;
-        }
-        if (this.registerTabOpen) {
-            return;
-        }
-        chrome.tabs.create({ url: chrome.runtime.getURL("register.html") });
-        this.registerTabOpen = true;
-    }
-
-    startNativeHost() {
-        this.port = chrome.runtime.connectNative("xdm_chrome.native_host");
-        this.port.onMessage.addListener(this.onMessage.bind(this));
-        this.port.onDisconnect.addListener(this.onDisconnect.bind(this));
-    }
-
-    actionClicked(tab) {
-        if (!this.enabled) {
-            if (!this.port) {
-                this.startNativeHost();
-            }
-        } else {
-            this.diconnect();
-        }
-    }
-
     onTabUpdate(tabId, changeInfo, tab) {
+        if (!this.isMonitoringEnabled()) {
+            return;
+        }
         let nativePort = this.port;
         if (changeInfo.title) {
             if (this.tabsWatcher &&
@@ -117,42 +114,18 @@ export default class App {
         }
     }
 
-    onInstalled(details) {
-        this.logger.log("installed...");
-        this.logger.log(details);
-        if (details.reason !== "install") {
-            return;
-        }
-        if (this.registerTabOpen) {
-            return;
-        }
-        chrome.storage.local.get(['registered'], result => {
-            if (result && result.registered === true) {
-                return;
-            }
-            chrome.tabs.create({ url: chrome.runtime.getURL("register.html") });
-        });
-        this.registerTabOpen = true;
-    }
-
-    start() {
-        this.logger.log("starting...");
-        chrome.runtime.onInstalled.addListener(
-            this.onInstalled.bind(this)
-        );
-        this.startNativeHost();
+    register() {
         chrome.downloads.onCreated.addListener(
-            this.onDownloadCreated.bind(this)
+            this.onDownloadCreatedCallback
         );
         chrome.downloads.onDeterminingFilename.addListener(
-            this.onDeterminingFilename.bind(this)
+            this.onDeterminingFilenameCallback
         );
-        this.logger.log("started.");
-        chrome.action.onClicked.addListener(this.actionClicked.bind(this));
-        this.requestWatcher.register();
         chrome.tabs.onUpdated.addListener(
-            this.onTabUpdate.bind(this)
+            this.onTabUpdateCallback
         );
+        chrome.runtime.onMessage.addListener(this.onPopupMessage.bind(this));
+        this.requestWatcher.register();
     }
 
     shouldTakeOver(url, file) {
@@ -171,10 +144,21 @@ export default class App {
 
     updateActionIcon() {
         chrome.action.setIcon({ path: this.getActionIcon() });
+        if (!this.registered) {
+            console.log("not registered")
+            chrome.action.setPopup({ popup: "./app/error.html" });
+            return;
+        }
+        if (!this.appEnabled) {
+            chrome.action.setPopup({ popup: "./app/disabled.html" });
+        }
+        else {
+            chrome.action.setPopup({ popup: "./app/popup.html" });
+        }
     }
 
     getActionIconName(icon) {
-        return this.enabled ? icon + ".png" : icon + "-mono.png";
+        return this.isMonitoringEnabled() ? icon + ".png" : icon + "-mono.png";
     }
 
     getActionIcon() {
@@ -212,5 +196,32 @@ export default class App {
     diconnect() {
         this.port && this.port.disconnect();
         this.onDisconnect();
+    }
+
+    onPopupMessage(request, sender, sendResponse) {
+        this.logger.log(request.type);
+        if (request.type === "stat") {
+            let resp = {
+                enabled: this.isMonitoringEnabled(),
+                list: this.videoList
+            };
+            sendResponse(resp);
+        }
+        else if (request.type === "cmd") {
+            this.enabled = request.enabled;
+            this.logger.log("request.enabled:" + request.enabled);
+            this.updateActionIcon();
+        }
+        else if (request.type === "vid") {
+            let vid = request.itemId;
+            this.port.postMessage({
+                vid: vid + ""
+            });
+        }
+        else if (request.type === "clear") {
+            this.port.postMessage({
+                clear: true
+            });
+        }
     }
 }
