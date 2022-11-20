@@ -145,7 +145,7 @@ export default class App {
     updateActionIcon() {
         chrome.action.setIcon({ path: this.getActionIcon() });
         if (!this.registered) {
-            console.log("not registered")
+            this.logger.log("not registered")
             chrome.action.setPopup({ popup: "./app/error.html" });
             return;
         }
@@ -154,6 +154,9 @@ export default class App {
         }
         else {
             chrome.action.setPopup({ popup: "./app/popup.html" });
+            if (this.videoList && this.videoList.length > 0) {
+                chrome.action.setBadgeText({ text: this.videoList.length + "" });
+            }
         }
     }
 
@@ -210,6 +213,10 @@ export default class App {
         else if (request.type === "cmd") {
             this.enabled = request.enabled;
             this.logger.log("request.enabled:" + request.enabled);
+            if (this.enabled && !this.port) {
+                this.startNativeHost();
+                return;
+            }
             this.updateActionIcon();
         }
         else if (request.type === "vid") {
