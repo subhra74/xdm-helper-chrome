@@ -144,6 +144,9 @@ export default class App {
 
     updateActionIcon() {
         chrome.action.setIcon({ path: this.getActionIcon() });
+        if (this.videoList && this.videoList.length > 0) {
+            chrome.action.setBadgeText({ text: this.videoList.length + "" });
+        }
         if (!this.registered) {
             this.logger.log("not registered")
             chrome.action.setPopup({ popup: "./app/error.html" });
@@ -222,7 +225,8 @@ export default class App {
         else if (request.type === "vid") {
             let vid = request.itemId;
             this.port.postMessage({
-                vid: vid + ""
+                vid: vid + "",
+                type: 'vid'
             });
         }
         else if (request.type === "clear") {
