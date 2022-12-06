@@ -56,7 +56,9 @@ export default class RequestWatcher {
 
     onSendHeadersEvent(info) {
         if (info.method !== "GET") {
-            return;
+            if (info.url.indexOf("googlevideo") < 0) {
+                return;
+            }
         }
         this.requestMap.set(info.requestId, info);
     }

@@ -9,6 +9,9 @@ class RequestWatcher {
         this.callback = callback;
         this.matchingHosts = [];
         this.mediaTypes = [];
+        this.onSendHeadersEventCallback = this.onSendHeadersEvent.bind(this);
+        this.onHeadersReceivedEventCallback = this.onHeadersReceivedEvent.bind(this);
+        this.onErrorOccurredEventCallback = this.onErrorOccurredEvent.bind(this);
     }
 
     updateConfig(config) {
@@ -52,12 +55,19 @@ class RequestWatcher {
 
     onSendHeadersEvent(info) {
         if (info.method !== "GET") {
-            return;
+            if (info.url.indexOf("googlevideo") < 0) {
+                return;
+            }
         }
         this.requestMap.set(info.requestId, info);
     }
 
     onHeadersReceivedEvent(res) {
+        if (res.method !== "GET") {
+            if (res.url.indexOf("googlevideo") < 0) {
+                return;
+            }
+        }
         let reqId = res.requestId;
         let req = this.requestMap.get(reqId);
         if (req) {
@@ -84,21 +94,27 @@ class RequestWatcher {
 
     register() {
         chrome.webRequest.onSendHeaders.addListener(
-            this.onSendHeadersEvent.bind(this),
+            this.onSendHeadersEventCallback,
             { urls: ["http://*/*", "https://*/*"] },
-            navigator.userAgent.indexOf("Firefox") ? ["requestHeaders"] : ["requestHeaders", "extraHeaders"]
+            ["requestHeaders"]
         );
 
         chrome.webRequest.onHeadersReceived.addListener(
-            this.onHeadersReceivedEvent.bind(this),
+            this.onHeadersReceivedEventCallback,
             { urls: ["http://*/*", "https://*/*"] },
             ["responseHeaders"]
         );
 
         chrome.webRequest.onErrorOccurred.addListener(
-            this.onErrorOccurredEvent.bind(this),
+            this.onErrorOccurredEventCallback,
             { urls: ["http://*/*", "https://*/*"] }
         );
+    }
+
+    unRegister() {
+        chrome.webRequest.onSendHeaders.removeListener(this.onSendHeadersEventCallback);
+        chrome.webRequest.onHeadersReceived.removeListener(this.onHeadersReceivedEventCallback);
+        chrome.webRequest.onErrorOccurred.removeListener(this.onErrorOccurredEventCallback);
     }
 
     createRequestData(req, res, title, tabUrl) {

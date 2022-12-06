@@ -1,4 +1,4 @@
 "use strict";
 
-const watcher = new DownloadWatcher();
-watcher.start();
+const app = new App();
+app.start();

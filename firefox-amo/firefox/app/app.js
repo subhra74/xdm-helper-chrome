@@ -1,8 +1,7 @@
 "use strict";
-import Logger from './logger.js';
-import RequestWatcher from './request-watcher.js';
 
-export default class App {
+class App {
+
     constructor() {
         this.logger = new Logger();
         this.videoList = [];
@@ -11,11 +10,9 @@ export default class App {
         this.port = undefined;
         this.requestWatcher = new RequestWatcher(this.onRequestDataReceived.bind(this));
         this.tabsWatcher = [];
-        this.registered = false;
         this.enabled = true;
         this.appEnabled = false;
         this.onDownloadCreatedCallback = this.onDownloadCreated.bind(this);
-        this.onDeterminingFilenameCallback = this.onDeterminingFilename.bind(this);
         this.onTabUpdateCallback = this.onTabUpdate.bind(this);
     }
 
@@ -27,14 +24,14 @@ export default class App {
     }
 
     startNativeHost() {
-        this.port = chrome.runtime.connectNative("xdm_chrome.native_host");
+        this.port = browser.runtime.connectNative("xdmff.native_host");
         this.port.onMessage.addListener(this.onMessage.bind(this));
         this.port.onDisconnect.addListener(this.onDisconnect.bind(this));
     }
 
     onMessage(msg) {
+        this.logger.log("onMessage...");
         this.logger.log(msg);
-        this.registered = true;
         this.appEnabled = msg.enabled === true;
         this.fileExts = msg.fileExts;
         this.blockedHosts = msg.blockedHosts;
@@ -58,18 +55,19 @@ export default class App {
     }
 
     isMonitoringEnabled() {
-        this.logger.log(this.registered + " " + this.appEnabled + " " + this.enabled);
-        return this.registered === true && this.appEnabled === true && this.enabled === true;
+        this.logger.log(this.appEnabled + " " + this.enabled);
+        return this.appEnabled === true && this.enabled === true;
     }
 
     onRequestDataReceived(data) {
         //Streaming video data received, send to native messaging application
+        this.logger.log("onRequestDataReceived...");
         this.logger.log(data);
         this.isMonitoringEnabled() && this.port && this.port.postMessage({ download_headers: data });
     }
 
-    onDeterminingFilename(download, suggest) {
-        this.logger.log("onDeterminingFilename");
+    onDownloadCreated(download) {
+        console.log("onDownloadCreated");
         if (!this.isMonitoringEnabled()) {
             return;
         }
@@ -84,11 +82,6 @@ export default class App {
             this.triggerDownload(url, download.filename,
                 download.referrer, download.fileSize, download.mime);
         }
-    }
-
-    onDownloadCreated(download) {
-        this.logger.log("onDownloadCreated");
-        this.logger.log(download);
     }
 
     onTabUpdate(tabId, changeInfo, tab) {
@@ -118,9 +111,6 @@ export default class App {
         chrome.downloads.onCreated.addListener(
             this.onDownloadCreatedCallback
         );
-        chrome.downloads.onDeterminingFilename.addListener(
-            this.onDeterminingFilenameCallback
-        );
         chrome.tabs.onUpdated.addListener(
             this.onTabUpdateCallback
         );
@@ -143,23 +133,18 @@ export default class App {
     }
 
     updateActionIcon() {
-        chrome.action.setIcon({ path: this.getActionIcon() });
-        chrome.action.setBadgeText({ text: "" });
+        chrome.browserAction.setIcon({ path: this.getActionIcon() });
+        chrome.browserAction.setBadgeText({ text: "" });
         if (this.videoList && this.videoList.length > 0) {
-            chrome.action.setBadgeText({ text: this.videoList.length + "" });
-        }
-        if (!this.registered) {
-            this.logger.log("not registered")
-            chrome.action.setPopup({ popup: "./app/error.html" });
-            return;
+            chrome.browserAction.setBadgeText({ text: this.videoList.length + "" });
         }
         if (!this.appEnabled) {
-            chrome.action.setPopup({ popup: "./app/disabled.html" });
+            chrome.browserAction.setPopup({ popup: "./app/disabled.html" });
         }
         else {
-            chrome.action.setPopup({ popup: "./app/popup.html" });
+            chrome.browserAction.setPopup({ popup: "./app/popup.html" });
             if (this.videoList && this.videoList.length > 0) {
-                chrome.action.setBadgeText({ text: this.videoList.length + "" });
+                chrome.browserAction.setBadgeText({ text: this.videoList.length + "" });
             }
         }
     }
