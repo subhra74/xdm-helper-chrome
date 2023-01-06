@@ -120,6 +120,9 @@ class App {
 
     shouldTakeOver(url, file) {
         let u = new URL(url);
+        if (!(u.protocol === 'http:' || u.protocol === 'https:')) {
+            return false;
+        }
         let hostName = u.host;
         if (this.blockedHosts.find(item => hostName.indexOf(item) >= 0)) {
             return false;

@@ -64,6 +64,7 @@ export default class App {
 
     onRequestDataReceived(data) {
         //Streaming video data received, send to native messaging application
+        this.logger.log("onRequestDataReceived");
         this.logger.log(data);
         this.isMonitoringEnabled() && this.port && this.port.postMessage({ download_headers: data });
     }
@@ -130,6 +131,9 @@ export default class App {
 
     shouldTakeOver(url, file) {
         let u = new URL(url);
+        if (!(u.protocol === 'http:' || u.protocol === 'https:')) {
+            return false;
+        }
         let hostName = u.host;
         if (this.blockedHosts.find(item => hostName.indexOf(item) >= 0)) {
             return false;

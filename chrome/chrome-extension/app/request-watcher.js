@@ -45,7 +45,7 @@ export default class RequestWatcher {
         }
 
         let mediaType = res.responseHeaders.find(h => h["name"].toUpperCase() === "CONTENT-TYPE");
-        if (this.mediaTypes.find(m => mediaType["value"].indexOf(m) >= 0)) {
+        if (mediaType && this.mediaTypes.find(m => mediaType["value"].indexOf(m) >= 0)) {
             return true;
         }
 
